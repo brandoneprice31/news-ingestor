@@ -61,6 +61,7 @@ func (c fox) Ingest() ([]article.Article, error) {
 
 		a.Date = *t
 		a.Headline = true
+		a.URL = l
 		articles = append(articles, *a)
 	}
 
@@ -110,6 +111,7 @@ func (c fox) parseArticle(n *html.Node) (*article.Article, error) {
 	author := scrape.Text(authorNode)
 
 	return &article.Article{
+		Source: c.Source(),
 		Title:  title,
 		Author: author,
 		Text:   text,

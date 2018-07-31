@@ -1,26 +1,51 @@
 package main
 
 import (
+	"database/sql"
 	"os"
 
 	"github.com/brandoneprice31/news-ingestor/article"
+	"github.com/brandoneprice31/news-ingestor/config"
 	"github.com/brandoneprice31/news-ingestor/ingestor"
+	dat "gopkg.in/mgutz/dat.v1"
+	runner "gopkg.in/mgutz/dat.v1/sqlx-runner"
 
 	"github.com/rs/zerolog"
 )
 
 const (
-	IngestionRounds = 1
+	IngestionRounds   = 1
+	ArticleBufferSize = 1
 )
 
 var (
-	log       = zerolog.New(os.Stderr).With().Timestamp().Logger()
-	ingestors = []ingestor.Ingestor{ingestor.FoxIngestor()}
+	articleService article.Service
+	log            = zerolog.New(os.Stderr).With().Timestamp().Logger()
+	ingestors      = []ingestor.Ingestor{ingestor.FoxIngestor()}
 )
 
 func main() {
-	articleBuffer := make(chan article.Article)
+	c, err := config.Load(config.GetEnv())
+	if err != nil {
+		panic(err)
+	}
 
+	// Connect to postgres db.
+	sqlDB, err := sql.Open("postgres", c.PostgresURL())
+	defer sqlDB.Close()
+	if err != nil {
+		panic(err)
+	}
+	db := runner.NewDB(sqlDB, "postgres")
+	dat.EnableInterpolation = true
+	articleService = article.NewService(db)
+
+	articleBuffer := make(chan article.Article, ArticleBufferSize)
+	startIngestion(articleBuffer)
+	saveArticles(articleBuffer)
+}
+
+func startIngestion(articleBuffer chan article.Article) {
 	// spin up ingestors
 	for iter := range ingestors {
 		i := ingestors[iter]
@@ -42,13 +67,24 @@ func main() {
 			}
 		}()
 	}
-
-	// save articles in db
-	for a := range articleBuffer {
-		save(a)
-	}
 }
 
-func save(a article.Article) {
-	log.Info().Msgf("title: %s, author: %s", a.Title, a.Author)
+func saveArticles(articleBuffer chan article.Article) {
+	for {
+		// save articles in db
+		aa := make([]article.Article, ArticleBufferSize)
+		for i := range aa {
+			aa[i] = <-articleBuffer
+		}
+
+		log.Info().Msgf("attemping to save %d articles", len(aa))
+
+		n, err := articleService.Save(aa)
+		if err != nil {
+			log.Error().Err(err)
+			return
+		}
+
+		log.Info().Msgf("saved %d articles", n)
+	}
 }
