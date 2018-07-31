@@ -38,13 +38,17 @@ func main() {
 	}
 	db := runner.NewDB(sqlDB, "postgres")
 	dat.EnableInterpolation = true
+
+	// create services
 	articleService = article.NewService(db)
 
+	// begin ingesting
 	articleBuffer := make(chan article.Article, ArticleBufferSize)
 	startIngestion(articleBuffer)
 	saveArticles(articleBuffer)
 }
 
+// ingests articles from the slice of ingestors and appends them to the channel
 func startIngestion(articleBuffer chan article.Article) {
 	// spin up ingestors
 	for iter := range ingestors {
@@ -69,6 +73,7 @@ func startIngestion(articleBuffer chan article.Article) {
 	}
 }
 
+// saves the articles inside the channel in our db
 func saveArticles(articleBuffer chan article.Article) {
 	for {
 		// save articles in db

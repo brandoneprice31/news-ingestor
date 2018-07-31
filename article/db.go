@@ -13,6 +13,10 @@ type (
 	}
 )
 
+const (
+	table = "articles"
+)
+
 func NewDB(conn *runner.DB) DB {
 	return &db{
 		conn: conn,
@@ -22,7 +26,7 @@ func NewDB(conn *runner.DB) DB {
 func (db *db) FindByURL(url string) (*Article, error) {
 	var a Article
 	err := db.conn.
-		Select(columns...).
+		Select(DBColumns...).
 		From(table).
 		Where("url=$1", url).
 		QueryStruct(&a)
@@ -37,8 +41,8 @@ func (db *db) Insert(aa []Article) error {
 	for _, a := range aa {
 		_, err := tx.
 			InsertInto(table).
-			Columns(columns...).
-			Values(a.Source, a.Title, a.Author, a.Date, a.Text, a.Headline, a.URL).
+			Columns(DBColumns...).
+			Values(a.Fields()).
 			Exec()
 		if err != nil {
 			return err

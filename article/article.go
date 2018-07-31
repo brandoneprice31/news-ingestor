@@ -13,3 +13,12 @@ type (
 		URL      string    `json:"url" db:"url"`
 	}
 )
+
+var (
+	DBColumns = []string{"source", "title", "author", "date", "text", "headline", "url"}
+)
+
+// Returns each field in the same order as DBColumns
+func (a *Article) Fields() (string, string, string, time.Time, string, bool, string) {
+	return a.Source, a.Title, a.Author, a.Date, a.Text, a.Headline, a.URL
+}

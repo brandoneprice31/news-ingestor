@@ -16,14 +16,6 @@ type (
 	}
 )
 
-const (
-	table = "articles"
-)
-
-var (
-	columns = []string{"source", "title", "author", "date", "text", "headline", "url"}
-)
-
 func NewService(conn *runner.DB) Service {
 	return &service{db: NewDB(conn)}
 }
