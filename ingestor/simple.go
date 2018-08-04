@@ -99,7 +99,11 @@ func htmlNode(link string) (*html.Node, error) {
 }
 
 func (c *simple) parseArticle(n *html.Node) (*article.Article, error) {
-	headline, ok := scrape.Find(n, c.crawler.Headline)
+	nodes := scrape.FindAll(n, func(n *html.Node) bool {
+		return c.crawler.Headline(n) || c.crawler.Author(n) || c.crawler.Date(n)
+	})
+
+	headline, ok := node(nodes, c.crawler.Headline)
 	if !ok {
 		return nil, errors.New("can't find headline")
 	}
@@ -114,13 +118,13 @@ func (c *simple) parseArticle(n *html.Node) (*article.Article, error) {
 		text += scrape.Text(t)
 	}
 
-	authorNode, ok := scrape.Find(n, c.crawler.Author)
+	authorNode, ok := node(nodes, c.crawler.Author)
 	if !ok {
 		return nil, errors.New("can't find author")
 	}
 	author := c.crawler.ParseAuthor(authorNode)
 
-	dateNode, ok := scrape.Find(n, c.crawler.Date)
+	dateNode, ok := node(nodes, c.crawler.Date)
 	if !ok {
 		return nil, errors.New("can't find date")
 	}
@@ -136,6 +140,16 @@ func (c *simple) parseArticle(n *html.Node) (*article.Article, error) {
 		Text:   text,
 		Date:   date,
 	}, nil
+}
+
+func node(nn []*html.Node, f func(n *html.Node) bool) (*html.Node, bool) {
+	for _, n := range nn {
+		if f(n) {
+			return n, true
+		}
+	}
+
+	return nil, false
 }
 
 func (c *simple) articleLinks(node *html.Node) ([]string, error) {
