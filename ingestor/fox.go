@@ -1,9 +1,6 @@
 package ingestor
 
 import (
-	"errors"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/yhat/scrape"
@@ -25,7 +22,7 @@ const (
 	foxHost   = "http://www.foxnews.com"
 )
 
-func FoxIngestor() Ingestor {
+func Fox() Ingestor {
 	return fox{
 		simple: newSimple(foxSource, foxHost, newFoxCrawler()),
 	}
@@ -79,36 +76,10 @@ func (c *foxCrawler) ArticleLinks(n *html.Node) bool {
 	}
 	link := scrape.Attr(n, "href")
 
-	_, err := c.dateFromURL(link)
+	_, err := dateFromURL(c.host, link, 1)
 	if err != nil {
 		return false
 	}
 
 	return true
-}
-
-func (c foxCrawler) dateFromURL(url string) (*time.Time, error) {
-	lengthOfHostAndSlash := len(c.host) + 1
-	if len(url) <= lengthOfHostAndSlash {
-		return nil, errors.New("could not parse url")
-	}
-	path := url[lengthOfHostAndSlash:]
-
-	// now check that this path is prefixed with a date
-	pathEntries := strings.Split(path, "/")
-	if len(pathEntries) < 5 {
-		return nil, errors.New("could not parse url")
-	}
-
-	yearStr, monthStr, dayStr := pathEntries[1], pathEntries[2], pathEntries[3]
-
-	year, yErr := strconv.Atoi(yearStr)
-	month, mErr := strconv.Atoi(monthStr)
-	day, dErr := strconv.Atoi(dayStr)
-	if yErr != nil || mErr != nil || dErr != nil {
-		return nil, errors.New("could not parse url")
-	}
-
-	d := time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
-	return &d, nil
 }

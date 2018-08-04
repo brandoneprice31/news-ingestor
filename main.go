@@ -21,8 +21,6 @@ const (
 var (
 	articleService article.Service
 	log            = zerolog.New(os.Stderr).With().Timestamp().Logger()
-
-	ingestors = []ingestor.Ingestor{ingestor.FoxIngestor(), ingestor.NYTIngestor()}
 )
 
 func main() {
@@ -52,8 +50,8 @@ func main() {
 // ingests articles from the slice of ingestors and appends them to the channel
 func startIngestion(articleBuffer chan article.Article) {
 	// spin up ingestors
-	for iter := range ingestors {
-		i := ingestors[iter]
+	for iter := range ingestor.Ingestors {
+		i := ingestor.Ingestors[iter]
 
 		go func() {
 			for round := 0; round < IngestionRounds; round++ {

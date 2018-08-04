@@ -4,6 +4,8 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/brandoneprice31/news-ingestor/article"
@@ -146,4 +148,31 @@ func (c *simple) articleLinks(node *html.Node) ([]string, error) {
 	}
 
 	return links, nil
+}
+
+// Helper that looks for a date in a url given the start index of the date.
+func dateFromURL(host, url string, startIndex int) (*time.Time, error) {
+	lengthOfHostAndSlash := len(host) + 1
+	if len(url) <= lengthOfHostAndSlash {
+		return nil, errors.New("could not parse url")
+	}
+	path := url[lengthOfHostAndSlash:]
+
+	// now check that this path is prefixed with a date
+	pathEntries := strings.Split(path, "/")
+	if len(pathEntries) < startIndex+4 {
+		return nil, errors.New("could not parse url")
+	}
+
+	yearStr, monthStr, dayStr := pathEntries[startIndex], pathEntries[startIndex+1], pathEntries[startIndex+2]
+
+	year, yErr := strconv.Atoi(yearStr)
+	month, mErr := strconv.Atoi(monthStr)
+	day, dErr := strconv.Atoi(dayStr)
+	if yErr != nil || mErr != nil || dErr != nil {
+		return nil, errors.New("could not parse url")
+	}
+
+	d := time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
+	return &d, nil
 }

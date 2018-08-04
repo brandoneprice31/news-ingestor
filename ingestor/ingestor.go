@@ -10,3 +10,7 @@ type (
 		Ingest() ([]article.Article, error)
 	}
 )
+
+var (
+	Ingestors = []Ingestor{NYT(), Fox(), Wapo()}
+)

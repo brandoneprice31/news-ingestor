@@ -1,8 +1,6 @@
 package ingestor
 
 import (
-	"errors"
-	"strconv"
 	"strings"
 	"time"
 
@@ -25,7 +23,7 @@ const (
 	nytHost   = "https://www.nytimes.com"
 )
 
-func NYTIngestor() Ingestor {
+func NYT() Ingestor {
 	return nyt{
 		simple: newSimple(nytSource, nytHost, newNYTCrawler()),
 	}
@@ -67,7 +65,7 @@ func (c *nytCrawler) Author(n *html.Node) bool {
 }
 
 func (c *nytCrawler) ParseAuthor(n *html.Node) string {
-	return strings.Replace(scrape.Text(n), "By ", "", -1)
+	return strings.Replace(scrape.Text(n), "By ", "", 1)
 }
 
 func (c *nytCrawler) Date(n *html.Node) bool {
@@ -88,36 +86,10 @@ func (c *nytCrawler) ArticleLinks(n *html.Node) bool {
 	}
 	link := scrape.Attr(n, "href")
 
-	_, err := c.dateFromURL(link)
+	_, err := dateFromURL(c.host, link, 0)
 	if err != nil {
 		return false
 	}
 
 	return true
-}
-
-func (c nytCrawler) dateFromURL(url string) (*time.Time, error) {
-	lengthOfHostAndSlash := len(c.host) + 1
-	if len(url) <= lengthOfHostAndSlash {
-		return nil, errors.New("could not parse url")
-	}
-	path := url[lengthOfHostAndSlash:]
-
-	// now check that this path is prefixed with a date
-	pathEntries := strings.Split(path, "/")
-	if len(pathEntries) < 4 {
-		return nil, errors.New("could not parse url")
-	}
-
-	yearStr, monthStr, dayStr := pathEntries[0], pathEntries[1], pathEntries[2]
-
-	year, yErr := strconv.Atoi(yearStr)
-	month, mErr := strconv.Atoi(monthStr)
-	day, dErr := strconv.Atoi(dayStr)
-	if yErr != nil || mErr != nil || dErr != nil {
-		return nil, errors.New("could not parse url")
-	}
-
-	d := time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
-	return &d, nil
 }
