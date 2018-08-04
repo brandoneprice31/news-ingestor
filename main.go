@@ -21,7 +21,8 @@ const (
 var (
 	articleService article.Service
 	log            = zerolog.New(os.Stderr).With().Timestamp().Logger()
-	ingestors      = []ingestor.Ingestor{ingestor.FoxIngestor()}
+
+	ingestors = []ingestor.Ingestor{ingestor.FoxIngestor(), ingestor.NYTIngestor()}
 )
 
 func main() {

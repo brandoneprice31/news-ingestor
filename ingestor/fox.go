@@ -2,135 +2,78 @@ package ingestor
 
 import (
 	"errors"
-	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/yhat/scrape"
 	"golang.org/x/net/html"
-
-	"github.com/brandoneprice31/news-ingestor/article"
 )
 
 type (
 	fox struct {
+		*simple
+	}
+
+	foxCrawler struct {
 		host string
 	}
 )
 
+const (
+	foxSource = "fox"
+	foxHost   = "http://www.foxnews.com"
+)
+
 func FoxIngestor() Ingestor {
-
 	return fox{
-		host: "http://www.foxnews.com",
+		simple: newSimple(foxSource, foxHost, newFoxCrawler()),
 	}
 }
 
-func (c fox) Source() string {
-	return "fox"
+func newFoxCrawler() crawler {
+	return &foxCrawler{
+		host: foxHost,
+	}
 }
 
-func (c fox) Ingest() ([]article.Article, error) {
-	// request and parse the front page
-	rootNode, err := htmlNode(c.host)
+func (c *foxCrawler) CleanURL(url string) string {
+	return url
+}
+
+func (c *foxCrawler) Headline(n *html.Node) bool {
+	return scrape.Attr(n, "class") == "headline head1"
+}
+
+func (c *foxCrawler) ParseHeadline(n *html.Node) string {
+	return scrape.Text(n)
+}
+
+func (c *foxCrawler) Text(n *html.Node) bool {
+	return scrape.Attr(n, "class") == "article-body"
+}
+
+func (c *foxCrawler) Author(n *html.Node) bool {
+	return scrape.Attr(n, "rel") == "author"
+}
+
+func (c *foxCrawler) ParseAuthor(n *html.Node) string {
+	return scrape.Text(n)
+}
+
+func (c *foxCrawler) Date(n *html.Node) bool {
+	return scrape.Attr(n, "data-time-published") != ""
+}
+
+func (c *foxCrawler) ParseDate(n *html.Node) (time.Time, error) {
+	t, err := time.Parse("2006-01-02T15:04:03Z-0400", scrape.Attr(n, "data-time-published"))
 	if err != nil {
-		return nil, err
+		return time.Time{}, err
 	}
-
-	links, err := c.articleLinks(rootNode)
-	if err != nil {
-		return nil, err
-	}
-
-	articles := []article.Article{}
-	for _, l := range links {
-		articleNode, err := htmlNode(l)
-		if err != nil {
-			continue
-		}
-
-		a, err := c.parseArticle(articleNode)
-		if err != nil {
-			continue
-		}
-
-		t, err := c.dateFromURL(l)
-		if err != nil {
-			continue
-		}
-
-		a.Date = *t
-		a.Headline = true
-		a.URL = l
-		articles = append(articles, *a)
-	}
-
-	return articles, nil
+	return t, nil
 }
 
-func htmlNode(link string) (*html.Node, error) {
-	resp, err := http.Get(link)
-	if err != nil {
-		return nil, err
-	}
-
-	n, err := html.Parse(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	return n, nil
-}
-
-func (c fox) parseArticle(n *html.Node) (*article.Article, error) {
-	headline, ok := scrape.Find(n, func(n *html.Node) bool {
-		return scrape.Attr(n, "class") == "headline head1"
-	})
-	if !ok {
-		return nil, errors.New("not ok")
-	}
-
-	title := scrape.Text(headline)
-
-	body, ok := scrape.Find(n, func(n *html.Node) bool {
-		return scrape.Attr(n, "class") == "article-body"
-	})
-	if !ok {
-		return nil, errors.New("not ok")
-	}
-
-	text := scrape.Text(body)
-
-	authorNode, ok := scrape.Find(n, func(n *html.Node) bool {
-		return scrape.Attr(n, "rel") == "author"
-	})
-	if !ok {
-		return nil, errors.New("not ok")
-	}
-
-	author := scrape.Text(authorNode)
-
-	return &article.Article{
-		Source: c.Source(),
-		Title:  title,
-		Author: author,
-		Text:   text,
-	}, nil
-}
-
-func (c fox) articleLinks(node *html.Node) ([]string, error) {
-	// grab all articles and print them
-	nodes := scrape.FindAll(node, c.articleFinder)
-
-	links := make([]string, len(nodes))
-	for i, n := range nodes {
-		links[i] = scrape.Attr(n, "href")
-	}
-
-	return links, nil
-}
-
-func (c fox) articleFinder(n *html.Node) bool {
+func (c *foxCrawler) ArticleLinks(n *html.Node) bool {
 	if n.Data != "a" {
 		return false
 	}
@@ -144,7 +87,7 @@ func (c fox) articleFinder(n *html.Node) bool {
 	return true
 }
 
-func (c fox) dateFromURL(url string) (*time.Time, error) {
+func (c foxCrawler) dateFromURL(url string) (*time.Time, error) {
 	lengthOfHostAndSlash := len(c.host) + 1
 	if len(url) <= lengthOfHostAndSlash {
 		return nil, errors.New("could not parse url")
