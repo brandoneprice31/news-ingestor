@@ -3,7 +3,7 @@ package main
 import (
 	"database/sql"
 	"os"
-	"time"
+	"sync"
 
 	"github.com/brandoneprice31/news-ingestor/article"
 	"github.com/brandoneprice31/news-ingestor/config"
@@ -16,7 +16,7 @@ import (
 
 const (
 	IngestionRounds   = 1
-	ArticleBufferSize = 10
+	ArticleBufferSize = 100
 )
 
 var (
@@ -43,9 +43,9 @@ func main() {
 	articleService = article.NewService(db)
 
 	// begin ingesting
-	articleBuffer := make(chan articleBool, ArticleBufferSize)
-	startIngestion(articleBuffer)
-	saveArticles(articleBuffer)
+	articleBuffer, wg := make(chan articleBool, ArticleBufferSize), sync.WaitGroup{}
+	startIngestion(articleBuffer, &wg)
+	saveArticles(articleBuffer, &wg)
 }
 
 type articleBool struct {
@@ -54,13 +54,15 @@ type articleBool struct {
 }
 
 // ingests articles from the slice of ingestors and appends them to the channel
-func startIngestion(articleBuffer chan articleBool) {
+func startIngestion(articleBuffer chan articleBool, wg *sync.WaitGroup) {
 	// spin up ingestors
 	for iter := range ingestor.Ingestors {
 		i := ingestor.Ingestors[iter]
 
+		wg.Add(1)
 		go func() {
 			for round := 0; round < IngestionRounds; round++ {
+				defer wg.Done()
 				log.Info().Str("source", i.Source()).Msgf("starting ingestion")
 
 				aa, err := i.Ingest()
@@ -79,24 +81,22 @@ func startIngestion(articleBuffer chan articleBool) {
 }
 
 // saves the articles inside the channel in our db
-func saveArticles(articleBuffer chan articleBool) {
-	for {
-		breakOut := false
-		aa := []article.Article{}
-		go func() {
-			for {
-				time.Sleep(5 * time.Second)
-				if len(aa) < ArticleBufferSize {
-					articleBuffer <- articleBool{b: false}
-					break
-				}
-			}
-		}()
+func saveArticles(articleBuffer chan articleBool, wg *sync.WaitGroup) {
+	aa := []article.Article{}
 
+	// spin up routine that will force flush the buffer once the waitgroup is done
+	go func() {
+		wg.Wait()
+		articleBuffer <- articleBool{b: false}
+	}()
+
+	// continuously save the buffer
+	breakout := false
+	for !breakout {
 		for i := 0; i < ArticleBufferSize; i++ {
 			ab := <-articleBuffer
 			if !ab.b {
-				breakOut = true
+				breakout = true
 				break
 			}
 			aa = append(aa, ab.a)
@@ -113,8 +113,6 @@ func saveArticles(articleBuffer chan articleBool) {
 		log.Info().Msgf("inserted %d articles", inserted)
 		log.Info().Msgf("updated %d articles", updated)
 
-		if breakOut {
-			break
-		}
+		aa = []article.Article{}
 	}
 }
