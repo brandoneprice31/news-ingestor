@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"os"
+	"time"
 
 	"github.com/brandoneprice31/news-ingestor/article"
 	"github.com/brandoneprice31/news-ingestor/config"
@@ -15,7 +16,7 @@ import (
 
 const (
 	IngestionRounds   = 1
-	ArticleBufferSize = 1
+	ArticleBufferSize = 10
 )
 
 var (
@@ -42,13 +43,18 @@ func main() {
 	articleService = article.NewService(db)
 
 	// begin ingesting
-	articleBuffer := make(chan article.Article, ArticleBufferSize)
+	articleBuffer := make(chan articleBool, ArticleBufferSize)
 	startIngestion(articleBuffer)
 	saveArticles(articleBuffer)
 }
 
+type articleBool struct {
+	a article.Article
+	b bool
+}
+
 // ingests articles from the slice of ingestors and appends them to the channel
-func startIngestion(articleBuffer chan article.Article) {
+func startIngestion(articleBuffer chan articleBool) {
 	// spin up ingestors
 	for iter := range ingestor.Ingestors {
 		i := ingestor.Ingestors[iter]
@@ -65,7 +71,7 @@ func startIngestion(articleBuffer chan article.Article) {
 				log.Info().Str("source", i.Source()).Msgf("completed ingestion")
 
 				for _, a := range aa {
-					articleBuffer <- a
+					articleBuffer <- articleBool{a: a, b: true}
 				}
 			}
 		}()
@@ -73,22 +79,42 @@ func startIngestion(articleBuffer chan article.Article) {
 }
 
 // saves the articles inside the channel in our db
-func saveArticles(articleBuffer chan article.Article) {
+func saveArticles(articleBuffer chan articleBool) {
 	for {
-		// save articles in db
-		aa := make([]article.Article, ArticleBufferSize)
-		for i := range aa {
-			aa[i] = <-articleBuffer
+		breakOut := false
+		aa := []article.Article{}
+		go func() {
+			for {
+				time.Sleep(5 * time.Second)
+				if len(aa) < ArticleBufferSize {
+					articleBuffer <- articleBool{b: false}
+					break
+				}
+			}
+		}()
+
+		for i := 0; i < ArticleBufferSize; i++ {
+			ab := <-articleBuffer
+			if !ab.b {
+				breakOut = true
+				break
+			}
+			aa = append(aa, ab.a)
 		}
 
 		log.Info().Msgf("attemping to save %d articles", len(aa))
 
-		n, err := articleService.Save(aa)
+		inserted, updated, err := articleService.Save(aa)
 		if err != nil {
 			log.Error().Err(err)
 			return
 		}
 
-		log.Info().Msgf("saved %d articles", n)
+		log.Info().Msgf("inserted %d articles", inserted)
+		log.Info().Msgf("updated %d articles", updated)
+
+		if breakOut {
+			break
+		}
 	}
 }

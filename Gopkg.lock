@@ -2,6 +2,12 @@
 
 
 [[projects]]
+  branch = "master"
+  name = "github.com/brandoneprice31/async"
+  packages = ["."]
+  revision = "f0f4c80ccbd4d45b5635964c81a0f7c2f2efd632"
+
+[[projects]]
   name = "github.com/cenkalti/backoff"
   packages = ["."]
   revision = "2ea60e5f094469f9e65adb9cd103795b73ae743e"
@@ -136,6 +142,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "3f676496f24c7681f3dcb9e3cb9413d4c3073bd8231170cff4ba3286b410c746"
+  inputs-digest = "473453ec14076da8ffe90766070a625ee00ccb9bf13338381211892df2222f6f"
   solver-name = "gps-cdcl"
   solver-version = 1
