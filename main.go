@@ -14,10 +14,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
-const (
-	IngestionRounds   = 1
-	ArticleBufferSize = 100
-)
+const ArticleBufferSize = 100
 
 var (
 	articleService article.Service
@@ -61,20 +58,18 @@ func startIngestion(articleBuffer chan articleBool, wg *sync.WaitGroup) {
 
 		wg.Add(1)
 		go func() {
-			for round := 0; round < IngestionRounds; round++ {
-				defer wg.Done()
-				log.Info().Str("source", i.Source()).Msgf("starting ingestion")
+			defer wg.Done()
+			log.Info().Str("source", i.Source()).Msgf("starting ingestion")
 
-				aa, err := i.Ingest()
-				if err != nil {
-					log.Fatal().Err(err)
-				}
+			aa, err := i.Ingest()
+			if err != nil {
+				log.Fatal().Err(err)
+			}
 
-				log.Info().Str("source", i.Source()).Msgf("completed ingestion")
+			log.Info().Str("source", i.Source()).Msgf("completed ingestion")
 
-				for _, a := range aa {
-					articleBuffer <- articleBool{a: a, b: true}
-				}
+			for _, a := range aa {
+				articleBuffer <- articleBool{a: a, b: true}
 			}
 		}()
 	}

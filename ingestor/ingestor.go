@@ -11,6 +11,4 @@ type (
 	}
 )
 
-var (
-	Ingestors = []Ingestor{NYT(), Fox(), Wapo()}
-)
+var Ingestors = []Ingestor{Fox(), Breitbart(), NYT()}

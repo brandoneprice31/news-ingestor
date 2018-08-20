@@ -52,7 +52,7 @@ func (c *simple) Source() string {
 
 func (c *simple) Ingest() ([]article.Article, error) {
 	// request and parse the front page
-	rootNode, err := htmlNode(c.host)
+	rootNode, err := c.htmlNode(c.host)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (c *simple) Ingest() ([]article.Article, error) {
 
 	articles := []article.Article{}
 	for _, l := range links {
-		articleNode, err := htmlNode(l)
+		articleNode, err := c.htmlNode(l)
 		if err != nil {
 			log.Error().Str("source", c.Source()).Err(err).Msg("could not get node from link")
 			continue
@@ -84,7 +84,15 @@ func (c *simple) Ingest() ([]article.Article, error) {
 	return articles, nil
 }
 
-func htmlNode(link string) (*html.Node, error) {
+func (c *simple) htmlNode(link string) (*html.Node, error) {
+	if len(link) < 2 {
+		return nil, errors.New("no url")
+	}
+
+	if string(link[0]) == "/" {
+		link = c.host + link
+	}
+
 	resp, err := http.Get(link)
 	if err != nil {
 		return nil, err
@@ -166,11 +174,20 @@ func (c *simple) articleLinks(node *html.Node) ([]string, error) {
 
 // Helper that looks for a date in a url given the start index of the date.
 func dateFromURL(host, url string, startIndex int) (*time.Time, error) {
-	lengthOfHostAndSlash := len(host) + 1
-	if len(url) <= lengthOfHostAndSlash {
-		return nil, errors.New("could not parse url")
+	if len(url) < 2 {
+		return nil, errors.New("no url")
 	}
-	path := url[lengthOfHostAndSlash:]
+
+	path := ""
+	if string(url[0]) == "/" {
+		path = url[1:]
+	} else {
+		lengthOfHostAndSlash := len(host) + 1
+		if len(url) <= lengthOfHostAndSlash {
+			return nil, errors.New("could not parse url")
+		}
+		path = url[lengthOfHostAndSlash:]
+	}
 
 	// now check that this path is prefixed with a date
 	pathEntries := strings.Split(path, "/")
